@@ -1,0 +1,13 @@
+{
+  "name": "tales-of-goa-blockchain",
+  "version": "1.0.0",
+  "description": "Smart Contracts and Web3 Integration for Tales of Goa",
+  "main": "hardhat.config.js",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test"
+  },
+  "keywords": ["blockchain", "ethereum", "hardhat", "smart-contracts"],
+  "author": "",
+  "license": "MIT"
+}
