@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
-from app.schemas.face import VerificationRequest, VerificationResponse
-from app.services.blockchain import submit_record_hash_to_blockchain
+from app.schemas.face import VerificationRequest, VerificationResponse, VerificationQueryResponse
+from app.services.blockchain import submit_record_hash_to_blockchain, query_verification_record
 
 router = APIRouter(prefix="/api/verification", tags=["Blockchain Verification"])
 
@@ -26,5 +26,24 @@ def record_verification_endpoint(payload: VerificationRequest):
             network="EVM Testnet",
             status="failed",
             timestamp="",
+            error=str(e)
+        )
+
+@router.get("/query/{record_hash}", response_model=VerificationQueryResponse)
+def query_verification_endpoint(record_hash: str):
+    """
+    GET /api/verification/query/{record_hash}
+    Queries EVM Smart Contract for an existing on-chain biometric verification proof.
+    """
+    try:
+        print(f"[BLOCKCHAIN] Querying smart contract for record hash: {record_hash}")
+        result = query_verification_record(record_hash)
+        return VerificationQueryResponse(**result)
+    except Exception as e:
+        print(f"[ERROR][BLOCKCHAIN] Query failed: {e}")
+        return VerificationQueryResponse(
+            record_hash=record_hash,
+            exists_on_chain=False,
+            network="EVM Testnet",
             error=str(e)
         )
