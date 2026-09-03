@@ -3,14 +3,15 @@
 import React from 'react';
 import { FaceBox } from '../services/api';
 
-interface FaceOverlayProps {
+export interface FaceOverlayProps {
   faces: FaceBox[];
   imageWidth: number;
   imageHeight: number;
-  containerWidth: number;
-  containerHeight: number;
+  containerWidth?: number;
+  containerHeight?: number;
   statusMessage?: string;
   isMirrored?: boolean;
+  color?: string;
 }
 
 export const FaceOverlay: React.FC<FaceOverlayProps> = ({
@@ -19,17 +20,17 @@ export const FaceOverlay: React.FC<FaceOverlayProps> = ({
   imageHeight,
   containerWidth,
   containerHeight,
-  isMirrored = true,
+  isMirrored = false,
+  color,
 }) => {
-  if (!containerWidth || !containerHeight || !imageWidth || !imageHeight || faces.length === 0) {
+  if (!imageWidth || !imageHeight || faces.length === 0) {
     return null;
   }
 
-  const scaleX = containerWidth / imageWidth;
-  const scaleY = containerHeight / imageHeight;
-
+  // If container dimensions are not provided, use percentage scaling relative to image coordinates
+  const usePercentage = !containerWidth || !containerHeight;
   const isSingleFace = faces.length === 1;
-  const boxColor = isSingleFace ? '#10b981' : '#f59e0b';
+  const boxColor = color || (isSingleFace ? '#10b981' : '#f59e0b');
 
   return (
     <div
@@ -37,31 +38,45 @@ export const FaceOverlay: React.FC<FaceOverlayProps> = ({
         position: 'absolute',
         top: 0,
         left: 0,
-        width: `${containerWidth}px`,
-        height: `${containerHeight}px`,
+        width: containerWidth ? `${containerWidth}px` : '100%',
+        height: containerHeight ? `${containerHeight}px` : '100%',
         pointerEvents: 'none',
         overflow: 'hidden',
       }}
     >
       {faces.map((box, index) => {
-        const top = box.top * scaleY;
-        const width = (box.right - box.left) * scaleX;
-        const height = (box.bottom - box.top) * scaleY;
+        let topStyle: string;
+        let leftStyle: string;
+        let widthStyle: string;
+        let heightStyle: string;
 
-        // On mirrored webcam: left coordinate must be mapped from the right side of the unmirrored frame
-        const left = isMirrored
-          ? (imageWidth - box.right) * scaleX
-          : box.left * scaleX;
+        if (usePercentage) {
+          topStyle = `${(box.top / imageHeight) * 100}%`;
+          heightStyle = `${((box.bottom - box.top) / imageHeight) * 100}%`;
+          widthStyle = `${((box.right - box.left) / imageWidth) * 100}%`;
+          leftStyle = isMirrored
+            ? `${((imageWidth - box.right) / imageWidth) * 100}%`
+            : `${(box.left / imageWidth) * 100}%`;
+        } else {
+          const scaleX = (containerWidth as number) / imageWidth;
+          const scaleY = (containerHeight as number) / imageHeight;
+          topStyle = `${Math.max(0, box.top * scaleY)}px`;
+          heightStyle = `${(box.bottom - box.top) * scaleY}px`;
+          widthStyle = `${(box.right - box.left) * scaleX}px`;
+          leftStyle = isMirrored
+            ? `${(imageWidth - box.right) * scaleX}px`
+            : `${box.left * scaleX}px`;
+        }
 
         return (
           <div
             key={index}
             style={{
               position: 'absolute',
-              top: `${Math.max(0, top)}px`,
-              left: `${Math.max(0, left)}px`,
-              width: `${width}px`,
-              height: `${height}px`,
+              top: topStyle,
+              left: leftStyle,
+              width: widthStyle,
+              height: heightStyle,
               border: `2px solid ${boxColor}`,
               borderRadius: '8px',
               boxShadow: `0 0 16px ${boxColor}66, inset 0 0 8px ${boxColor}33`,
@@ -97,7 +112,7 @@ export const FaceOverlay: React.FC<FaceOverlayProps> = ({
             <div
               style={{
                 position: 'absolute',
-                top: '-26px',
+                top: '-24px',
                 left: '0px',
                 background: boxColor,
                 color: '#0f172a',
@@ -111,7 +126,7 @@ export const FaceOverlay: React.FC<FaceOverlayProps> = ({
                 boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
               }}
             >
-              {isSingleFace ? '✓ 1 FACE DETECTED' : `⚠️ MULTIPLE FACES (${faces.length})`}
+              {isSingleFace ? '✓ FACE DETECTED' : `⚠️ MULTIPLE FACES (${faces.length})`}
             </div>
           </div>
         );

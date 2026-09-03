@@ -14,10 +14,14 @@ export function FaceComparisonView({ onNotify }: Props) {
   const [faceABoxes, setFaceABoxes] = useState<FaceBox[]>([]);
   const [useCameraA, setUseCameraA] = useState<boolean>(true);
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+  const [isMirroredA, setIsMirroredA] = useState<boolean>(true);
+  const [isFrozenA, setIsFrozenA] = useState<boolean>(false);
+  const [statusMessageA, setStatusMessageA] = useState<string>('STARTING CAMERA...');
 
   // Image B (Reference / Social Post Image)
   const [imageB, setImageB] = useState<string | null>(null);
   const [faceBBoxes, setFaceBBoxes] = useState<FaceBox[]>([]);
+  const [statusMessageB, setStatusMessageB] = useState<string>('NO IMAGE');
 
   // Pipeline execution & results
   const [threshold, setThreshold] = useState<number>(0.60);
@@ -30,6 +34,7 @@ export function FaceComparisonView({ onNotify }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isSamplingRef = useRef<boolean>(false);
 
   // Camera start / stop for Live input A
   useEffect(() => {
@@ -48,12 +53,14 @@ export function FaceComparisonView({ onNotify }: Props) {
             videoRef.current.onloadedmetadata = () => {
               videoRef.current?.play();
               setIsCameraActive(true);
+              setStatusMessageA('CAMERA ACTIVE');
             };
           }
         }
       } catch (err) {
         console.error('Camera access error:', err);
         setIsCameraActive(false);
+        setStatusMessageA('CAMERA ERROR / PERMISSION DENIED');
       }
     }
 
@@ -76,7 +83,42 @@ export function FaceComparisonView({ onNotify }: Props) {
     };
   }, [useCameraA]);
 
-  // Capture frame from camera
+  // Continuous face detection loop on live webcam stream (samples ~3 times a second)
+  useEffect(() => {
+    if (!useCameraA || !isCameraActive || isFrozenA || isComparing) return;
+
+    const interval = setInterval(async () => {
+      if (isSamplingRef.current) return;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState < 2) return;
+
+      const width = video.videoWidth || 640;
+      const height = video.videoHeight || 480;
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.drawImage(video, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+      try {
+        isSamplingRef.current = true;
+        const detectRes = await detectFace(dataUrl);
+        setFaceABoxes(detectRes.faces || []);
+        setStatusMessageA(detectRes.status_message || (detectRes.face_detected ? '1 FACE DETECTED' : 'SEARCHING...'));
+      } catch (err) {
+        // Dev silence
+      } finally {
+        isSamplingRef.current = false;
+      }
+    }, 320);
+
+    return () => clearInterval(interval);
+  }, [useCameraA, isCameraActive, isFrozenA, isComparing]);
+
+  // Capture / Freeze frame from camera
   const captureCameraFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
@@ -88,14 +130,20 @@ export function FaceComparisonView({ onNotify }: Props) {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     setImageA(dataUrl);
+    setIsFrozenA(true);
 
-    // Detect faces in captured frame
     detectFace(dataUrl)
       .then((res) => {
         setFaceABoxes(res.faces || []);
+        setStatusMessageA('FRAME CAPTURED');
       })
       .catch((err) => console.error('Detection A error:', err));
   }, []);
+
+  const unfreezeCamera = () => {
+    setIsFrozenA(false);
+    setImageA(null);
+  };
 
   // Handle file uploads for Image A
   const handleUploadA = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,9 +154,11 @@ export function FaceComparisonView({ onNotify }: Props) {
       const dataUrl = evt.target?.result as string;
       setImageA(dataUrl);
       setUseCameraA(false);
+      setIsFrozenA(false);
       try {
         const res = await detectFace(dataUrl);
         setFaceABoxes(res.faces || []);
+        setStatusMessageA(res.status_message || 'IMAGE A LOADED');
       } catch (err) {
         console.error(err);
       }
@@ -127,6 +177,7 @@ export function FaceComparisonView({ onNotify }: Props) {
       try {
         const res = await detectFace(dataUrl);
         setFaceBBoxes(res.faces || []);
+        setStatusMessageB(res.status_message || 'REFERENCE IMAGE LOADED');
       } catch (err) {
         console.error(err);
       }
@@ -137,7 +188,7 @@ export function FaceComparisonView({ onNotify }: Props) {
   // Run 1-to-1 comparison pipeline
   const handleCompare = async () => {
     let sourceA = imageA;
-    if (useCameraA && isCameraActive && videoRef.current && canvasRef.current) {
+    if (useCameraA && isCameraActive && !isFrozenA && videoRef.current && canvasRef.current) {
       captureCameraFrame();
       const canvas = canvasRef.current;
       sourceA = canvas.toDataURL('image/jpeg', 0.9);
@@ -241,7 +292,7 @@ export function FaceComparisonView({ onNotify }: Props) {
           flexDirection: 'column',
           gap: '16px',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{
                 background: '#d4af37',
@@ -254,36 +305,68 @@ export function FaceComparisonView({ onNotify }: Props) {
               <h4 style={{ margin: 0, fontSize: '1rem', color: '#ffffff' }}>Live Camera / Ingestion A</h4>
             </div>
 
-            {/* Toggle Camera vs Upload */}
-            <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '2px', borderRadius: '6px' }}>
-              <button
-                onClick={() => setUseCameraA(true)}
-                style={{
-                  background: useCameraA ? '#d4af37' : 'transparent',
-                  color: useCameraA ? '#000000' : '#94a3b8',
-                  border: 'none',
+            {/* Action buttons: Mirror Flip + Toggle Camera/Upload */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              
+              {/* Mirror toggle button */}
+              {useCameraA && (
+                <button
+                  onClick={() => setIsMirroredA((prev) => !prev)}
+                  title="Toggle Camera Mirroring (Flips video & face bounding box)"
+                  style={{
+                    background: isMirroredA ? 'rgba(212, 175, 55, 0.18)' : 'rgba(255,255,255,0.08)',
+                    border: `1px solid ${isMirroredA ? '#d4af37' : 'rgba(255,255,255,0.2)'}`,
+                    color: isMirroredA ? '#d4af37' : '#94a3b8',
+                    borderRadius: '6px',
+                    padding: '4px 8px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span>🪞</span>
+                  <span>{isMirroredA ? 'Mirrored' : 'Unmirrored'}</span>
+                </button>
+              )}
+
+              {/* Toggle Camera vs Upload */}
+              <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '2px', borderRadius: '6px' }}>
+                <button
+                  onClick={() => {
+                    setUseCameraA(true);
+                    setIsFrozenA(false);
+                  }}
+                  style={{
+                    background: useCameraA ? '#d4af37' : 'transparent',
+                    color: useCameraA ? '#000000' : '#94a3b8',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '4px 8px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  📷 Live
+                </button>
+                <label style={{
+                  background: !useCameraA ? '#d4af37' : 'transparent',
+                  color: !useCameraA ? '#000000' : '#94a3b8',
                   borderRadius: '4px',
                   padding: '4px 8px',
                   fontSize: '0.75rem',
                   fontWeight: 600,
                   cursor: 'pointer',
-                }}
-              >
-                📷 Live
-              </button>
-              <label style={{
-                background: !useCameraA ? '#d4af37' : 'transparent',
-                color: !useCameraA ? '#000000' : '#94a3b8',
-                borderRadius: '4px',
-                padding: '4px 8px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'inline-block',
-              }}>
-                📁 Upload
-                <input type="file" accept="image/*" onChange={handleUploadA} style={{ display: 'none' }} />
-              </label>
+                  display: 'inline-block',
+                }}>
+                  📁 Upload
+                  <input type="file" accept="image/*" onChange={handleUploadA} style={{ display: 'none' }} />
+                </label>
+              </div>
+
             </div>
           </div>
 
@@ -300,52 +383,111 @@ export function FaceComparisonView({ onNotify }: Props) {
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-            {useCameraA ? (
+            {useCameraA && !isFrozenA ? (
               <>
                 <video
                   ref={videoRef}
                   playsInline
                   muted
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: isMirroredA ? 'scaleX(-1)' : 'none',
+                    transition: 'transform 0.2s ease',
+                  }}
                 />
                 <FaceOverlay
                   faces={faceABoxes}
                   imageWidth={videoRef.current?.videoWidth || 640}
                   imageHeight={videoRef.current?.videoHeight || 480}
+                  isMirrored={isMirroredA}
                   color="#d4af37"
                 />
               </>
             ) : imageA ? (
               <>
-                <img src={imageA} alt="Source A" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <img
+                  src={imageA}
+                  alt="Source A"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    transform: (useCameraA && isMirroredA) ? 'scaleX(-1)' : 'none',
+                  }}
+                />
                 <FaceOverlay
                   faces={faceABoxes}
                   imageWidth={640}
                   imageHeight={480}
+                  isMirrored={useCameraA && isMirroredA}
                   color="#d4af37"
                 />
               </>
             ) : (
               <div style={{ color: '#64748b', fontSize: '0.875rem' }}>No image loaded</div>
             )}
+
+            {/* Status chip */}
+            <div style={{
+              position: 'absolute',
+              bottom: '8px',
+              left: '8px',
+              background: 'rgba(0,0,0,0.7)',
+              backdropFilter: 'blur(4px)',
+              padding: '4px 10px',
+              borderRadius: '12px',
+              fontSize: '0.75rem',
+              fontFamily: 'monospace',
+              color: '#d4af37',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: faceABoxes.length > 0 ? '#10b981' : '#f59e0b' }} />
+              {statusMessageA}
+            </div>
           </div>
 
           {useCameraA && (
-            <button
-              onClick={captureCameraFrame}
-              style={{
-                background: 'rgba(212, 175, 55, 0.15)',
-                border: '1px solid #d4af37',
-                color: '#d4af37',
-                padding: '8px 16px',
-                borderRadius: '8px',
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              📸 Freeze / Snapshot Frame A
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {!isFrozenA ? (
+                <button
+                  onClick={captureCameraFrame}
+                  style={{
+                    flex: 1,
+                    background: 'rgba(212, 175, 55, 0.15)',
+                    border: '1px solid #d4af37',
+                    color: '#d4af37',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  📸 Snapshot Frame A
+                </button>
+              ) : (
+                <button
+                  onClick={unfreezeCamera}
+                  style={{
+                    flex: 1,
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#f8fafc',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  🔄 Resume Live Camera
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -406,6 +548,7 @@ export function FaceComparisonView({ onNotify }: Props) {
                   faces={faceBBoxes}
                   imageWidth={640}
                   imageHeight={480}
+                  isMirrored={false}
                   color="#38bdf8"
                 />
               </>
@@ -425,6 +568,28 @@ export function FaceComparisonView({ onNotify }: Props) {
                 <span style={{ fontSize: '0.75rem', color: '#64748b' }}>PNG, JPG, WebP supported</span>
                 <input type="file" accept="image/*" onChange={handleUploadB} style={{ display: 'none' }} />
               </label>
+            )}
+
+            {/* Status chip */}
+            {imageB && (
+              <div style={{
+                position: 'absolute',
+                bottom: '8px',
+                left: '8px',
+                background: 'rgba(0,0,0,0.7)',
+                backdropFilter: 'blur(4px)',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                fontSize: '0.75rem',
+                fontFamily: 'monospace',
+                color: '#38bdf8',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: faceBBoxes.length > 0 ? '#10b981' : '#ef4444' }} />
+                {statusMessageB}
+              </div>
             )}
           </div>
 

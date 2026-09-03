@@ -31,6 +31,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [isMirrored, setIsMirrored] = useState(true);
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
 
   // Update container dimensions on resize
@@ -91,7 +92,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     if (!cameraReady || cameraError) return;
 
     const interval = setInterval(() => {
-      if (isProcessing) return; // Stale frame protection: skip if backend request in flight
+      if (isProcessing) return; // Skip if backend request in flight
 
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -152,7 +153,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              transform: 'scaleX(-1)', // Mirror webcam display
+              transform: isMirrored ? 'scaleX(-1)' : 'none',
+              transition: 'transform 0.2s ease',
             }}
           />
 
@@ -163,7 +165,35 @@ export const CameraView: React.FC<CameraViewProps> = ({
             containerWidth={containerDimensions.width}
             containerHeight={containerDimensions.height}
             statusMessage={statusMessage}
+            isMirrored={isMirrored}
           />
+
+          {/* Mirror Flip Toggle Button */}
+          <button
+            onClick={() => setIsMirrored((prev) => !prev)}
+            title="Toggle Camera Mirroring"
+            style={{
+              position: 'absolute',
+              top: '12px',
+              right: '12px',
+              background: isMirrored ? 'rgba(212, 175, 55, 0.2)' : 'rgba(0,0,0,0.6)',
+              border: `1px solid ${isMirrored ? '#d4af37' : 'rgba(255,255,255,0.2)'}`,
+              color: isMirrored ? '#d4af37' : '#94a3b8',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              backdropFilter: 'blur(8px)',
+              zIndex: 10,
+            }}
+          >
+            <span>🪞</span>
+            <span>{isMirrored ? 'Mirrored' : 'Unmirrored'}</span>
+          </button>
 
           {/* Status banner */}
           <div
