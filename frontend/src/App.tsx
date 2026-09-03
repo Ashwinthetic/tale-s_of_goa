@@ -1,13 +1,11 @@
-'use client';
-
-import React, { useState, useCallback, useEffect } from 'react';
-import { CameraView } from '../components/CameraView';
-import { TestImageUpload } from '../components/TestImageUpload';
-import { DetectionStatus, PipelineStatus } from '../components/DetectionStatus';
-import { CaptureButton } from '../components/CaptureButton';
-import { EmbeddingPanel } from '../components/EmbeddingPanel';
-import { FaceComparisonView } from '../components/FaceComparisonView';
-import { PixelInspectionPanel } from '../components/PixelInspectionPanel';
+import { useState, useCallback, useEffect } from 'react';
+import { CameraView } from './components/CameraView';
+import { TestImageUpload } from './components/TestImageUpload';
+import { DetectionStatus, PipelineStatus } from './components/DetectionStatus';
+import { CaptureButton } from './components/CaptureButton';
+import { EmbeddingPanel } from './components/EmbeddingPanel';
+import { FaceComparisonView } from './components/FaceComparisonView';
+import { PixelInspectionPanel } from './components/PixelInspectionPanel';
 import {
   detectFace,
   encodeFace,
@@ -15,9 +13,9 @@ import {
   FaceBox,
   PixelStats,
   VerificationResponse,
-} from '../services/api';
+} from './services/api';
 
-export default function Home() {
+export default function App() {
   const [activeTab, setActiveTab] = useState<'compare' | 'register'>('compare');
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
 
