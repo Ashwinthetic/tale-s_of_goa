@@ -7,11 +7,13 @@ import { DetectionStatus, PipelineStatus } from '../components/DetectionStatus';
 import { CaptureButton } from '../components/CaptureButton';
 import { EmbeddingPanel } from '../components/EmbeddingPanel';
 import { FaceComparisonView } from '../components/FaceComparisonView';
+import { PixelInspectionPanel } from '../components/PixelInspectionPanel';
 import {
   detectFace,
   encodeFace,
   recordVerification,
   FaceBox,
+  PixelStats,
   VerificationResponse,
 } from '../services/api';
 
@@ -26,6 +28,10 @@ export default function Home() {
   const [imageWidth, setImageWidth] = useState<number>(640);
   const [imageHeight, setImageHeight] = useState<number>(480);
   const [statusMessage, setStatusMessage] = useState<string>('INITIALIZING...');
+  const [pixelStats, setPixelStats] = useState<PixelStats | undefined>(undefined);
+  const [rgbCrop, setRgbCrop] = useState<string | undefined>(undefined);
+  const [grayCrop, setGrayCrop] = useState<string | undefined>(undefined);
+  const [eqCrop, setEqCrop] = useState<string | undefined>(undefined);
 
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus>({
     cameraReady: false,
@@ -80,6 +86,10 @@ export default function Home() {
         setImageWidth(detectRes.image_width || 640);
         setImageHeight(detectRes.image_height || 480);
         setStatusMessage(detectRes.status_message || 'PROCESSING');
+        if (detectRes.pixel_stats) setPixelStats(detectRes.pixel_stats);
+        if (detectRes.rgb_crop_base64) setRgbCrop(detectRes.rgb_crop_base64);
+        if (detectRes.grayscale_crop_base64) setGrayCrop(detectRes.grayscale_crop_base64);
+        if (detectRes.equalized_crop_base64) setEqCrop(detectRes.equalized_crop_base64);
 
         setPipelineStatus((prev) => ({
           ...prev,
@@ -105,6 +115,10 @@ export default function Home() {
       setImageWidth(detectRes.image_width || 640);
       setImageHeight(detectRes.image_height || 480);
       setStatusMessage(detectRes.status_message || 'IMAGE PROCESSED');
+      if (detectRes.pixel_stats) setPixelStats(detectRes.pixel_stats);
+      if (detectRes.rgb_crop_base64) setRgbCrop(detectRes.rgb_crop_base64);
+      if (detectRes.grayscale_crop_base64) setGrayCrop(detectRes.grayscale_crop_base64);
+      if (detectRes.equalized_crop_base64) setEqCrop(detectRes.equalized_crop_base64);
 
       setPipelineStatus((prev) => ({
         ...prev,
@@ -135,6 +149,10 @@ export default function Home() {
 
       setEmbedding(encodeRes.embedding);
       setRecordHash(encodeRes.record_hash);
+      if (encodeRes.pixel_stats) setPixelStats(encodeRes.pixel_stats);
+      if (encodeRes.rgb_crop_base64) setRgbCrop(encodeRes.rgb_crop_base64);
+      if (encodeRes.grayscale_crop_base64) setGrayCrop(encodeRes.grayscale_crop_base64);
+      if (encodeRes.equalized_crop_base64) setEqCrop(encodeRes.equalized_crop_base64);
 
       setPipelineStatus((prev) => ({
         ...prev,
@@ -470,6 +488,16 @@ export default function Home() {
               </div>
 
             </div>
+
+            {/* Pixel Data & Grayscale Inspection Panel */}
+            <PixelInspectionPanel
+              title="Camera Ingestion — Grayscale Output & Pixel Inspection"
+              pixelStats={pixelStats}
+              rgbCropBase64={rgbCrop}
+              grayscaleCropBase64={grayCrop}
+              equalizedCropBase64={eqCrop}
+              accentColor="#d4af37"
+            />
 
             {/* Results Section */}
             {(pipelineStatus.embeddingGenerated || pipelineStatus.isProcessing) && (

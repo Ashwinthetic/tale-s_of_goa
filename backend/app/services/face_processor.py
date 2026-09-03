@@ -28,6 +28,93 @@ def decode_base64_image(base64_string: str) -> np.ndarray:
     # Convert RGB to BGR for OpenCV processing
     return cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2BGR)
 
+def encode_image_to_base64(img_ndarray: np.ndarray, format_ext: str = ".jpg") -> str:
+    """
+    Encodes OpenCV BGR or Grayscale numpy array into a Base64 data URL string.
+    """
+    if img_ndarray is None or img_ndarray.size == 0:
+        return ""
+    success, buffer = cv2.imencode(format_ext, img_ndarray, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    if not success:
+        return ""
+    b64_str = base64.b64encode(buffer).decode('utf-8')
+    return f"data:image/jpeg;base64,{b64_str}"
+
+def extract_pixel_stats(image_bgr: np.ndarray, crop_bgr: Optional[np.ndarray] = None) -> Dict[str, Any]:
+    """
+    Extracts numerical pixel metrics, color space representations (RGB, BGR, Hex, Grayscale),
+    and image dimensions for educational visualization.
+    """
+    h, w, c = image_bgr.shape
+    total_pixels = int(h * w)
+    total_bytes = int(total_pixels * c)
+
+    target_img = crop_bgr if (crop_bgr is not None and crop_bgr.size > 0) else image_bgr
+    th, tw, _ = target_img.shape
+
+    sample_coords = [
+        (0, 0),
+        (max(0, th // 4), max(0, tw // 4)),
+        (max(0, th // 2), max(0, tw // 2)),
+        (max(0, 3 * th // 4), max(0, 3 * tw // 4)),
+        (max(0, min(th - 1, 10)), max(0, min(tw - 1, 10))),
+        (max(0, th // 2), max(0, tw // 4)),
+    ]
+
+    sample_pixels = []
+    seen = set()
+    for y, x in sample_coords:
+        if 0 <= y < th and 0 <= x < tw and (x, y) not in seen:
+            seen.add((x, y))
+            b, g, r = int(target_img[y, x, 0]), int(target_img[y, x, 1]), int(target_img[y, x, 2])
+            gray_val = int(round(0.299 * r + 0.587 * g + 0.114 * b))
+            hex_val = f"#{r:02X}{g:02X}{b:02X}"
+            sample_pixels.append({
+                "coordinate": f"({x}, {y})",
+                "rgb": f"RGB({r}, {g}, {b})",
+                "bgr": f"BGR({b}, {g}, {r})",
+                "grayscale": gray_val,
+                "hex": hex_val
+            })
+
+    crop_pixels = int(crop_bgr.shape[0] * crop_bgr.shape[1]) if crop_bgr is not None else None
+
+    return {
+        "image_width": int(w),
+        "image_height": int(h),
+        "total_pixels": total_pixels,
+        "channels": int(c),
+        "total_bytes": total_bytes,
+        "face_crop_width": int(crop_bgr.shape[1]) if crop_bgr is not None else None,
+        "face_crop_height": int(crop_bgr.shape[0]) if crop_bgr is not None else None,
+        "face_crop_pixels": crop_pixels,
+        "standardized_grid_pixels": 16384, # 128x128 grid
+        "sample_pixels": sample_pixels
+    }
+
+def process_face_transformations(face_bgr: np.ndarray) -> Tuple[str, str, str]:
+    """
+    Generates Base64 previews for the 3 stages:
+    1. RGB Face Crop
+    2. 8-Bit Grayscale Face Crop (cv2.COLOR_BGR2GRAY)
+    3. Histogram Equalized Face Matrix (cv2.equalizeHist)
+    """
+    if face_bgr is None or face_bgr.size == 0:
+        return "", "", ""
+
+    # 1. RGB Crop
+    rgb_crop_b64 = encode_image_to_base64(face_bgr)
+
+    # 2. Grayscale Crop
+    gray_face = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2GRAY)
+    gray_crop_b64 = encode_image_to_base64(gray_face)
+
+    # 3. Histogram Equalized Crop
+    equalized_face = cv2.equalizeHist(gray_face)
+    equalized_crop_b64 = encode_image_to_base64(equalized_face)
+
+    return rgb_crop_b64, gray_crop_b64, equalized_crop_b64
+
 def detect_faces(image_bgr: np.ndarray) -> Tuple[List[Dict[str, int]], int, int]:
     """
     Detects faces in BGR image array using multi-scale ensemble classifier.
@@ -121,6 +208,7 @@ def generate_128d_embedding(face_bgr: np.ndarray) -> List[float]:
     # Resize crop to standard 128x128 facial analysis grid
     face_resized = cv2.resize(face_bgr, (128, 128))
     gray_face = cv2.cvtColor(face_resized, cv2.COLOR_BGR2GRAY)
+    gray_face = cv2.equalizeHist(gray_face)
 
     # Compute 128-dimensional facial representation vector
     # 1. Block-wise mean intensity (64 features)

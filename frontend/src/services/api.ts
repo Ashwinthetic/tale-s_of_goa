@@ -5,6 +5,27 @@ export interface FaceBox {
   left: number;
 }
 
+export interface SamplePixel {
+  coordinate: string;
+  rgb: string;
+  bgr: string;
+  grayscale: number;
+  hex: string;
+}
+
+export interface PixelStats {
+  image_width: number;
+  image_height: number;
+  total_pixels: number;
+  channels: number;
+  total_bytes: number;
+  face_crop_width?: number;
+  face_crop_height?: number;
+  face_crop_pixels?: number;
+  standardized_grid_pixels: number;
+  sample_pixels: SamplePixel[];
+}
+
 export interface DetectResponse {
   face_detected: boolean;
   face_count: number;
@@ -12,6 +33,10 @@ export interface DetectResponse {
   status_message: string;
   image_width: number;
   image_height: number;
+  pixel_stats?: PixelStats;
+  rgb_crop_base64?: string;
+  grayscale_crop_base64?: string;
+  equalized_crop_base64?: string;
   error?: string;
 }
 
@@ -20,6 +45,10 @@ export interface EncodeResponse {
   embedding_dimension: number;
   embedding: number[];
   record_hash: string;
+  pixel_stats?: PixelStats;
+  rgb_crop_base64?: string;
+  grayscale_crop_base64?: string;
+  equalized_crop_base64?: string;
   error?: string;
 }
 
@@ -46,6 +75,14 @@ export interface CompareResponse {
   face_b_detected: boolean;
   face_a_box?: FaceBox;
   face_b_box?: FaceBox;
+  pixel_stats_a?: PixelStats;
+  pixel_stats_b?: PixelStats;
+  rgb_crop_a_base64?: string;
+  grayscale_crop_a_base64?: string;
+  equalized_crop_a_base64?: string;
+  rgb_crop_b_base64?: string;
+  grayscale_crop_b_base64?: string;
+  equalized_crop_b_base64?: string;
   embedding_a: number[];
   embedding_b: number[];
   record_hash: string;

@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FaceBox, CompareResponse, compareFaces, detectFace } from '../services/api';
+import { FaceBox, CompareResponse, PixelStats, compareFaces, detectFace } from '../services/api';
 import { FaceOverlay } from './FaceOverlay';
+import { PixelInspectionPanel } from './PixelInspectionPanel';
 
 interface Props {
   onNotify?: (msg: string) => void;
@@ -17,11 +18,19 @@ export function FaceComparisonView({ onNotify }: Props) {
   const [isMirroredA, setIsMirroredA] = useState<boolean>(true);
   const [isFrozenA, setIsFrozenA] = useState<boolean>(false);
   const [statusMessageA, setStatusMessageA] = useState<string>('STARTING CAMERA...');
+  const [pixelStatsA, setPixelStatsA] = useState<PixelStats | undefined>(undefined);
+  const [rgbCropA, setRgbCropA] = useState<string | undefined>(undefined);
+  const [grayCropA, setGrayCropA] = useState<string | undefined>(undefined);
+  const [eqCropA, setEqCropA] = useState<string | undefined>(undefined);
 
   // Image B (Reference / Social Post Image)
   const [imageB, setImageB] = useState<string | null>(null);
   const [faceBBoxes, setFaceBBoxes] = useState<FaceBox[]>([]);
   const [statusMessageB, setStatusMessageB] = useState<string>('NO IMAGE');
+  const [pixelStatsB, setPixelStatsB] = useState<PixelStats | undefined>(undefined);
+  const [rgbCropB, setRgbCropB] = useState<string | undefined>(undefined);
+  const [grayCropB, setGrayCropB] = useState<string | undefined>(undefined);
+  const [eqCropB, setEqCropB] = useState<string | undefined>(undefined);
 
   // Pipeline execution & results
   const [threshold, setThreshold] = useState<number>(0.60);
@@ -108,12 +117,16 @@ export function FaceComparisonView({ onNotify }: Props) {
         const detectRes = await detectFace(dataUrl);
         setFaceABoxes(detectRes.faces || []);
         setStatusMessageA(detectRes.status_message || (detectRes.face_detected ? '1 FACE DETECTED' : 'SEARCHING...'));
+        if (detectRes.pixel_stats) setPixelStatsA(detectRes.pixel_stats);
+        if (detectRes.rgb_crop_base64) setRgbCropA(detectRes.rgb_crop_base64);
+        if (detectRes.grayscale_crop_base64) setGrayCropA(detectRes.grayscale_crop_base64);
+        if (detectRes.equalized_crop_base64) setEqCropA(detectRes.equalized_crop_base64);
       } catch (err) {
         // Dev silence
       } finally {
         isSamplingRef.current = false;
       }
-    }, 320);
+    }, 350);
 
     return () => clearInterval(interval);
   }, [useCameraA, isCameraActive, isFrozenA, isComparing]);
@@ -136,6 +149,10 @@ export function FaceComparisonView({ onNotify }: Props) {
       .then((res) => {
         setFaceABoxes(res.faces || []);
         setStatusMessageA('FRAME CAPTURED');
+        if (res.pixel_stats) setPixelStatsA(res.pixel_stats);
+        if (res.rgb_crop_base64) setRgbCropA(res.rgb_crop_base64);
+        if (res.grayscale_crop_base64) setGrayCropA(res.grayscale_crop_base64);
+        if (res.equalized_crop_base64) setEqCropA(res.equalized_crop_base64);
       })
       .catch((err) => console.error('Detection A error:', err));
   }, []);
@@ -159,6 +176,10 @@ export function FaceComparisonView({ onNotify }: Props) {
         const res = await detectFace(dataUrl);
         setFaceABoxes(res.faces || []);
         setStatusMessageA(res.status_message || 'IMAGE A LOADED');
+        if (res.pixel_stats) setPixelStatsA(res.pixel_stats);
+        if (res.rgb_crop_base64) setRgbCropA(res.rgb_crop_base64);
+        if (res.grayscale_crop_base64) setGrayCropA(res.grayscale_crop_base64);
+        if (res.equalized_crop_base64) setEqCropA(res.equalized_crop_base64);
       } catch (err) {
         console.error(err);
       }
@@ -178,6 +199,10 @@ export function FaceComparisonView({ onNotify }: Props) {
         const res = await detectFace(dataUrl);
         setFaceBBoxes(res.faces || []);
         setStatusMessageB(res.status_message || 'REFERENCE IMAGE LOADED');
+        if (res.pixel_stats) setPixelStatsB(res.pixel_stats);
+        if (res.rgb_crop_base64) setRgbCropB(res.rgb_crop_base64);
+        if (res.grayscale_crop_base64) setGrayCropB(res.grayscale_crop_base64);
+        if (res.equalized_crop_base64) setEqCropB(res.equalized_crop_base64);
       } catch (err) {
         console.error(err);
       }
@@ -210,6 +235,14 @@ export function FaceComparisonView({ onNotify }: Props) {
       setResult(res);
       if (res.face_a_box) setFaceABoxes([res.face_a_box]);
       if (res.face_b_box) setFaceBBoxes([res.face_b_box]);
+      if (res.pixel_stats_a) setPixelStatsA(res.pixel_stats_a);
+      if (res.pixel_stats_b) setPixelStatsB(res.pixel_stats_b);
+      if (res.rgb_crop_a_base64) setRgbCropA(res.rgb_crop_a_base64);
+      if (res.grayscale_crop_a_base64) setGrayCropA(res.grayscale_crop_a_base64);
+      if (res.equalized_crop_a_base64) setEqCropA(res.equalized_crop_a_base64);
+      if (res.rgb_crop_b_base64) setRgbCropB(res.rgb_crop_b_base64);
+      if (res.grayscale_crop_b_base64) setGrayCropB(res.grayscale_crop_b_base64);
+      if (res.equalized_crop_b_base64) setEqCropB(res.equalized_crop_b_base64);
     } catch (err: any) {
       alert(`Comparison failed: ${err.message || 'Unknown error'}`);
     } finally {
@@ -320,295 +353,151 @@ export function FaceComparisonView({ onNotify }: Props) {
       }}>
         
         {/* PANEL A: LIVE CAMERA / INPUT A */}
-        <div style={{
-          background: '#0f172a',
-          borderRadius: '20px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          padding: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{
-                background: '#d4af37',
-                color: '#000',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                fontSize: '0.75rem',
-                fontWeight: 800,
-              }}>A</span>
-              <h4 style={{ margin: 0, fontSize: '1rem', color: '#ffffff' }}>Live Camera / Ingestion A</h4>
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{
+            background: '#0f172a',
+            borderRadius: '20px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{
+                  background: '#d4af37',
+                  color: '#000',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                }}>A</span>
+                <h4 style={{ margin: 0, fontSize: '1rem', color: '#ffffff' }}>Live Camera / Ingestion A</h4>
+              </div>
 
-            {/* Action buttons: Mirror Flip + Toggle Camera/Upload */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              
-              {/* Mirror toggle button */}
-              {useCameraA && (
-                <button
-                  onClick={() => setIsMirroredA((prev) => !prev)}
-                  title="Toggle Camera Mirroring (Flips video & face bounding box)"
-                  style={{
-                    background: isMirroredA ? 'rgba(212, 175, 55, 0.18)' : 'rgba(255,255,255,0.08)',
-                    border: `1px solid ${isMirroredA ? '#d4af37' : 'rgba(255,255,255,0.2)'}`,
-                    color: isMirroredA ? '#d4af37' : '#94a3b8',
-                    borderRadius: '6px',
-                    padding: '4px 8px',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <span>🪞</span>
-                  <span>{isMirroredA ? 'Mirrored' : 'Unmirrored'}</span>
-                </button>
-              )}
+              {/* Action buttons: Mirror Flip + Toggle Camera/Upload */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                
+                {useCameraA && (
+                  <button
+                    onClick={() => setIsMirroredA((prev) => !prev)}
+                    title="Toggle Camera Mirroring"
+                    style={{
+                      background: isMirroredA ? 'rgba(212, 175, 55, 0.18)' : 'rgba(255,255,255,0.08)',
+                      border: `1px solid ${isMirroredA ? '#d4af37' : 'rgba(255,255,255,0.2)'}`,
+                      color: isMirroredA ? '#d4af37' : '#94a3b8',
+                      borderRadius: '6px',
+                      padding: '4px 8px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <span>🪞</span>
+                    <span>{isMirroredA ? 'Mirrored' : 'Unmirrored'}</span>
+                  </button>
+                )}
 
-              {/* Toggle Camera vs Upload */}
-              <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '2px', borderRadius: '6px' }}>
-                <button
-                  onClick={() => {
-                    setUseCameraA(true);
-                    setIsFrozenA(false);
-                  }}
-                  style={{
-                    background: useCameraA ? '#d4af37' : 'transparent',
-                    color: useCameraA ? '#000000' : '#94a3b8',
-                    border: 'none',
+                <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '2px', borderRadius: '6px' }}>
+                  <button
+                    onClick={() => {
+                      setUseCameraA(true);
+                      setIsFrozenA(false);
+                    }}
+                    style={{
+                      background: useCameraA ? '#d4af37' : 'transparent',
+                      color: useCameraA ? '#000000' : '#94a3b8',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '4px 8px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    📷 Live
+                  </button>
+                  <label style={{
+                    background: !useCameraA ? '#d4af37' : 'transparent',
+                    color: !useCameraA ? '#000000' : '#94a3b8',
                     borderRadius: '4px',
                     padding: '4px 8px',
                     fontSize: '0.75rem',
                     fontWeight: 600,
                     cursor: 'pointer',
-                  }}
-                >
-                  📷 Live
-                </button>
-                <label style={{
-                  background: !useCameraA ? '#d4af37' : 'transparent',
-                  color: !useCameraA ? '#000000' : '#94a3b8',
-                  borderRadius: '4px',
-                  padding: '4px 8px',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-block',
-                }}>
-                  📁 Upload
-                  <input type="file" accept="image/*" onChange={handleUploadA} style={{ display: 'none' }} />
-                </label>
+                    display: 'inline-block',
+                  }}>
+                    📁 Upload
+                    <input type="file" accept="image/*" onChange={handleUploadA} style={{ display: 'none' }} />
+                  </label>
+                </div>
               </div>
-
             </div>
-          </div>
 
-          {/* Viewport Box */}
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            aspectRatio: '4/3',
-            background: '#020617',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            border: '1px solid rgba(255,255,255,0.1)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            {useCameraA && !isFrozenA ? (
-              <>
-                <video
-                  ref={videoRef}
-                  playsInline
-                  muted
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    transform: isMirroredA ? 'scaleX(-1)' : 'none',
-                    transition: 'transform 0.2s ease',
-                  }}
-                />
-                <FaceOverlay
-                  faces={faceABoxes}
-                  imageWidth={videoRef.current?.videoWidth || 640}
-                  imageHeight={videoRef.current?.videoHeight || 480}
-                  isMirrored={isMirroredA}
-                  color="#d4af37"
-                />
-              </>
-            ) : imageA ? (
-              <>
-                <img
-                  src={imageA}
-                  alt="Source A"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    transform: (useCameraA && isMirroredA) ? 'scaleX(-1)' : 'none',
-                  }}
-                />
-                <FaceOverlay
-                  faces={faceABoxes}
-                  imageWidth={640}
-                  imageHeight={480}
-                  isMirrored={useCameraA && isMirroredA}
-                  color="#d4af37"
-                />
-              </>
-            ) : (
-              <div style={{ color: '#64748b', fontSize: '0.875rem' }}>No image loaded</div>
-            )}
-
-            {/* Status chip */}
+            {/* Viewport Box */}
             <div style={{
-              position: 'absolute',
-              bottom: '8px',
-              left: '8px',
-              background: 'rgba(0,0,0,0.7)',
-              backdropFilter: 'blur(4px)',
-              padding: '4px 10px',
+              position: 'relative',
+              width: '100%',
+              aspectRatio: '4/3',
+              background: '#020617',
               borderRadius: '12px',
-              fontSize: '0.75rem',
-              fontFamily: 'monospace',
-              color: '#d4af37',
+              overflow: 'hidden',
+              border: '1px solid rgba(255,255,255,0.1)',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              justifyContent: 'center',
             }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: faceABoxes.length > 0 ? '#10b981' : '#f59e0b' }} />
-              {statusMessageA}
-            </div>
-          </div>
-
-          {useCameraA && (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {!isFrozenA ? (
-                <button
-                  onClick={captureCameraFrame}
-                  style={{
-                    flex: 1,
-                    background: 'rgba(212, 175, 55, 0.15)',
-                    border: '1px solid #d4af37',
-                    color: '#d4af37',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    fontSize: '0.8125rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  📸 Snapshot Frame A
-                </button>
+              {useCameraA && !isFrozenA ? (
+                <>
+                  <video
+                    ref={videoRef}
+                    playsInline
+                    muted
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      transform: isMirroredA ? 'scaleX(-1)' : 'none',
+                      transition: 'transform 0.2s ease',
+                    }}
+                  />
+                  <FaceOverlay
+                    faces={faceABoxes}
+                    imageWidth={videoRef.current?.videoWidth || 640}
+                    imageHeight={videoRef.current?.videoHeight || 480}
+                    isMirrored={isMirroredA}
+                    color="#d4af37"
+                  />
+                </>
+              ) : imageA ? (
+                <>
+                  <img
+                    src={imageA}
+                    alt="Source A"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      transform: (useCameraA && isMirroredA) ? 'scaleX(-1)' : 'none',
+                    }}
+                  />
+                  <FaceOverlay
+                    faces={faceABoxes}
+                    imageWidth={640}
+                    imageHeight={480}
+                    isMirrored={useCameraA && isMirroredA}
+                    color="#d4af37"
+                  />
+                </>
               ) : (
-                <button
-                  onClick={unfreezeCamera}
-                  style={{
-                    flex: 1,
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: '#f8fafc',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    fontSize: '0.8125rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  🔄 Resume Live Camera
-                </button>
+                <div style={{ color: '#64748b', fontSize: '0.875rem' }}>No image loaded</div>
               )}
-            </div>
-          )}
-        </div>
 
-        {/* PANEL B: REFERENCE / SOCIAL MEDIA POST IMAGE */}
-        <div style={{
-          background: '#0f172a',
-          borderRadius: '20px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          padding: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{
-                background: '#38bdf8',
-                color: '#000',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                fontSize: '0.75rem',
-                fontWeight: 800,
-              }}>B</span>
-              <h4 style={{ margin: 0, fontSize: '1rem', color: '#ffffff' }}>Reference / Social Post Image (B)</h4>
-            </div>
-
-            <label style={{
-              background: '#38bdf8',
-              color: '#000000',
-              borderRadius: '6px',
-              padding: '4px 10px',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}>
-              📁 Choose File
-              <input type="file" accept="image/*" onChange={handleUploadB} style={{ display: 'none' }} />
-            </label>
-          </div>
-
-          {/* Viewport Box */}
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            aspectRatio: '4/3',
-            background: '#020617',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            border: '2px dashed rgba(56, 189, 248, 0.3)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            {imageB ? (
-              <>
-                <img src={imageB} alt="Reference B" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                <FaceOverlay
-                  faces={faceBBoxes}
-                  imageWidth={640}
-                  imageHeight={480}
-                  isMirrored={false}
-                  color="#38bdf8"
-                />
-              </>
-            ) : (
-              <label style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '8px',
-                color: '#64748b',
-                cursor: 'pointer',
-                padding: '24px',
-                textAlign: 'center',
-              }}>
-                <span style={{ fontSize: '2rem' }}>🖼️</span>
-                <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Upload social media post image / reference photo</span>
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>PNG, JPG, WebP supported</span>
-                <input type="file" accept="image/*" onChange={handleUploadB} style={{ display: 'none' }} />
-              </label>
-            )}
-
-            {/* Status chip */}
-            {imageB && (
+              {/* Status chip */}
               <div style={{
                 position: 'absolute',
                 bottom: '8px',
@@ -619,20 +508,185 @@ export function FaceComparisonView({ onNotify }: Props) {
                 borderRadius: '12px',
                 fontSize: '0.75rem',
                 fontFamily: 'monospace',
-                color: '#38bdf8',
+                color: '#d4af37',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
               }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: faceBBoxes.length > 0 ? '#10b981' : '#ef4444' }} />
-                {statusMessageB}
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: faceABoxes.length > 0 ? '#10b981' : '#f59e0b' }} />
+                {statusMessageA}
+              </div>
+            </div>
+
+            {useCameraA && (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {!isFrozenA ? (
+                  <button
+                    onClick={captureCameraFrame}
+                    style={{
+                      flex: 1,
+                      background: 'rgba(212, 175, 55, 0.15)',
+                      border: '1px solid #d4af37',
+                      color: '#d4af37',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    📸 Snapshot Frame A
+                  </button>
+                ) : (
+                  <button
+                    onClick={unfreezeCamera}
+                    style={{
+                      flex: 1,
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: '#f8fafc',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🔄 Resume Live Camera
+                  </button>
+                )}
               </div>
             )}
           </div>
 
-          <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'center' }}>
-            {imageB ? '✓ Reference image loaded and ready for comparison' : 'Select a reference face to compare against'}
+          {/* Grayscale Transforms & Pixel Matrix Inspection for Face A */}
+          <PixelInspectionPanel
+            title="Image A — Grayscale & Pixel Matrix Data"
+            pixelStats={pixelStatsA}
+            rgbCropBase64={rgbCropA}
+            grayscaleCropBase64={grayCropA}
+            equalizedCropBase64={eqCropA}
+            accentColor="#d4af37"
+          />
+        </div>
+
+        {/* PANEL B: REFERENCE / SOCIAL MEDIA POST IMAGE */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{
+            background: '#0f172a',
+            borderRadius: '20px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{
+                  background: '#38bdf8',
+                  color: '#000',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                }}>B</span>
+                <h4 style={{ margin: 0, fontSize: '1rem', color: '#ffffff' }}>Reference / Social Post Image (B)</h4>
+              </div>
+
+              <label style={{
+                background: '#38bdf8',
+                color: '#000000',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}>
+                📁 Choose File
+                <input type="file" accept="image/*" onChange={handleUploadB} style={{ display: 'none' }} />
+              </label>
+            </div>
+
+            {/* Viewport Box */}
+            <div style={{
+              position: 'relative',
+              width: '100%',
+              aspectRatio: '4/3',
+              background: '#020617',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              border: '2px dashed rgba(56, 189, 248, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              {imageB ? (
+                <>
+                  <img src={imageB} alt="Reference B" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  <FaceOverlay
+                    faces={faceBBoxes}
+                    imageWidth={640}
+                    imageHeight={480}
+                    isMirrored={false}
+                    color="#38bdf8"
+                  />
+                </>
+              ) : (
+                <label style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  padding: '24px',
+                  textAlign: 'center',
+                }}>
+                  <span style={{ fontSize: '2rem' }}>🖼️</span>
+                  <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Upload social media post image / reference photo</span>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>PNG, JPG, WebP supported</span>
+                  <input type="file" accept="image/*" onChange={handleUploadB} style={{ display: 'none' }} />
+                </label>
+              )}
+
+              {/* Status chip */}
+              {imageB && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '8px',
+                  left: '8px',
+                  background: 'rgba(0,0,0,0.7)',
+                  backdropFilter: 'blur(4px)',
+                  padding: '4px 10px',
+                  borderRadius: '12px',
+                  fontSize: '0.75rem',
+                  fontFamily: 'monospace',
+                  color: '#38bdf8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: faceBBoxes.length > 0 ? '#10b981' : '#ef4444' }} />
+                  {statusMessageB}
+                </div>
+              )}
+            </div>
+
+            <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'center' }}>
+              {imageB ? '✓ Reference image loaded and ready for comparison' : 'Select a reference face to compare against'}
+            </div>
           </div>
+
+          {/* Grayscale Transforms & Pixel Matrix Inspection for Face B */}
+          <PixelInspectionPanel
+            title="Image B — Grayscale & Pixel Matrix Data"
+            pixelStats={pixelStatsB}
+            rgbCropBase64={rgbCropB}
+            grayscaleCropBase64={grayCropB}
+            equalizedCropBase64={eqCropB}
+            accentColor="#38bdf8"
+          />
         </div>
 
       </div>

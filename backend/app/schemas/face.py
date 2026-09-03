@@ -7,6 +7,25 @@ class FaceBoxSchema(BaseModel):
     bottom: int
     left: int
 
+class SamplePixelSchema(BaseModel):
+    coordinate: str
+    rgb: str
+    bgr: str
+    grayscale: int
+    hex: str
+
+class PixelStatsSchema(BaseModel):
+    image_width: int
+    image_height: int
+    total_pixels: int
+    channels: int
+    total_bytes: int
+    face_crop_width: Optional[int] = None
+    face_crop_height: Optional[int] = None
+    face_crop_pixels: Optional[int] = None
+    standardized_grid_pixels: int = 16384
+    sample_pixels: List[SamplePixelSchema] = []
+
 class DetectRequest(BaseModel):
     image: str = Field(..., description="Base64 encoded JPEG or PNG image frame")
 
@@ -17,6 +36,11 @@ class DetectResponse(BaseModel):
     status_message: str
     image_width: int
     image_height: int
+    pixel_stats: Optional[PixelStatsSchema] = None
+    rgb_crop_base64: Optional[str] = None
+    grayscale_crop_base64: Optional[str] = None
+    equalized_crop_base64: Optional[str] = None
+    error: Optional[str] = None
 
 class EncodeRequest(BaseModel):
     image: str = Field(..., description="Base64 encoded image frame for face capture")
@@ -26,6 +50,10 @@ class EncodeResponse(BaseModel):
     embedding_dimension: int
     embedding: List[float]
     record_hash: str
+    pixel_stats: Optional[PixelStatsSchema] = None
+    rgb_crop_base64: Optional[str] = None
+    grayscale_crop_base64: Optional[str] = None
+    equalized_crop_base64: Optional[str] = None
     error: Optional[str] = None
 
 class VerificationRequest(BaseModel):
@@ -59,6 +87,14 @@ class CompareResponse(BaseModel):
     face_b_detected: bool
     face_a_box: Optional[FaceBoxSchema] = None
     face_b_box: Optional[FaceBoxSchema] = None
+    pixel_stats_a: Optional[PixelStatsSchema] = None
+    pixel_stats_b: Optional[PixelStatsSchema] = None
+    rgb_crop_a_base64: Optional[str] = None
+    grayscale_crop_a_base64: Optional[str] = None
+    equalized_crop_a_base64: Optional[str] = None
+    rgb_crop_b_base64: Optional[str] = None
+    grayscale_crop_b_base64: Optional[str] = None
+    equalized_crop_b_base64: Optional[str] = None
     embedding_a: List[float] = []
     embedding_b: List[float] = []
     record_hash: str = ""
