@@ -317,7 +317,7 @@ export default function Home() {
                   Registration Engine
                 </h2>
                 <p style={{ margin: '0 0 24px 0', color: '#94a3b8', fontSize: '1.05rem', lineHeight: 1.6 }}>
-                  Live camera frames are analyzed with OpenCV to isolate facial bounding boxes. The face crop is encoded into a <strong>128-dimensional numerical vector</strong>, hashed via <strong>canonical SHA-256</strong>, and anchored immutably to the <strong>EVM Smart Contract</strong>.
+                  Live camera frames are analyzed with OpenCV to isolate facial bounding boxes. The cropped face region undergoes <strong>8-bit Grayscale Conversion (<code style={{ color: '#38bdf8' }}>cv2.COLOR_BGR2GRAY</code>)</strong> and <strong>Histogram Equalization</strong> before being encoded into a <strong>128-dimensional numerical vector</strong>, hashed via <strong>canonical SHA-256</strong>, and anchored immutably to the <strong>EVM Smart Contract</strong>.
                 </p>
                 <div style={{
                   background: 'rgba(0,0,0,0.3)',
@@ -330,6 +330,7 @@ export default function Home() {
                   fontSize: '0.8125rem',
                   color: '#cbd5e1',
                 }}>
+                  <div>🖼️ <strong>Grayscale & Equalization:</strong> Normalizes lighting and contrast for invariant 128D vectors.</div>
                   <div>🔒 <strong>Privacy Assured:</strong> Raw photos are never stored on-chain.</div>
                   <div>⚡ <strong>Deterministic:</strong> L2-normalized 128D mathematical vectors.</div>
                   <div>⛓️ <strong>Tamper-Proof:</strong> Smart contract commits 32-byte cryptographic hashes.</div>

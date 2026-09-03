@@ -233,45 +233,82 @@ export function FaceComparisonView({ onNotify }: Props) {
         borderRadius: '16px',
         padding: '20px 24px',
         display: 'flex',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        flexDirection: 'column',
         gap: '16px',
         boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
       }}>
-        <div>
-          <h3 style={{ margin: '0 0 6px 0', fontSize: '1.25rem', color: '#f8fafc', fontWeight: 700 }}>
-            ⚡ 1-to-1 Biometric Verification Engine
-          </h3>
-          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.875rem' }}>
-            Compare a <strong>Live Camera Face (A)</strong> with a <strong>Reference / Social Post Image (B)</strong>. Extracts normalized 128D embeddings, evaluates Euclidean & Cosine similarity metrics, and commits proof on-chain.
-          </p>
-        </div>
-
-        {/* Controls Toolbar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8125rem', color: '#cbd5e1' }}>
-            <span>Threshold (Dist &le; {threshold.toFixed(2)}):</span>
-            <input
-              type="range"
-              min="0.30"
-              max="0.90"
-              step="0.05"
-              value={threshold}
-              onChange={(e) => setThreshold(parseFloat(e.target.value))}
-              style={{ accentColor: '#d4af37', cursor: 'pointer', width: '100px' }}
-            />
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+        }}>
+          <div>
+            <h3 style={{ margin: '0 0 6px 0', fontSize: '1.25rem', color: '#f8fafc', fontWeight: 700 }}>
+              ⚡ 1-to-1 Biometric Verification Engine
+            </h3>
+            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.875rem' }}>
+              Compare a <strong>Live Camera Face (A)</strong> with a <strong>Reference / Social Post Image (B)</strong>. Extracts normalized 128D embeddings, evaluates Euclidean & Cosine similarity metrics, and commits proof on-chain.
+            </p>
           </div>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8125rem', color: '#cbd5e1', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={autoRecord}
-              onChange={(e) => setAutoRecord(e.target.checked)}
-              style={{ accentColor: '#10b981' }}
-            />
-            <span>Auto-Commit Proof On-Chain</span>
-          </label>
+          {/* Controls Toolbar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8125rem', color: '#cbd5e1' }}>
+              <span>Threshold (Dist &le; {threshold.toFixed(2)}):</span>
+              <input
+                type="range"
+                min="0.30"
+                max="0.90"
+                step="0.05"
+                value={threshold}
+                onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                style={{ accentColor: '#d4af37', cursor: 'pointer', width: '100px' }}
+              />
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8125rem', color: '#cbd5e1', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={autoRecord}
+                onChange={(e) => setAutoRecord(e.target.checked)}
+                style={{ accentColor: '#10b981' }}
+              />
+              <span>Auto-Commit Proof On-Chain</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Interactive 7-Step Pipeline Stepper */}
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '8px',
+          background: 'rgba(0, 0, 0, 0.35)',
+          padding: '10px 14px',
+          borderRadius: '10px',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          fontSize: '0.75rem',
+          color: '#94a3b8',
+          alignItems: 'center',
+        }}>
+          <span style={{ fontWeight: 800, color: '#d4af37', letterSpacing: '0.05em' }}>PIPELINE:</span>
+          <span>① Image Ingestion</span>
+          <span style={{ color: '#475569' }}>→</span>
+          <span>② Face Detection</span>
+          <span style={{ color: '#475569' }}>→</span>
+          <span style={{ color: '#34d399', fontWeight: 700, background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '4px' }}>
+            ③ Grayscale & Equalization
+          </span>
+          <span style={{ color: '#475569' }}>→</span>
+          <span>④ 128D Embedding</span>
+          <span style={{ color: '#475569' }}>→</span>
+          <span>⑤ Similarity Check</span>
+          <span style={{ color: '#475569' }}>→</span>
+          <span>⑥ SHA-256 Digest</span>
+          <span style={{ color: '#475569' }}>→</span>
+          <span style={{ color: '#10b981', fontWeight: 700 }}>⑦ Smart Contract Anchor</span>
         </div>
       </div>
 
@@ -743,6 +780,16 @@ export function FaceComparisonView({ onNotify }: Props) {
               </div>
               <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
                 Normalized Unit Sphere
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(16,185,129,0.2)' }}>
+              <div style={{ fontSize: '0.75rem', color: '#34d399' }}>GRAYSCALE PRE-PROCESSING</div>
+              <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#a7f3d0', marginTop: '6px' }}>
+                ✓ 8-Bit Gray + Equalized
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
+                cv2.COLOR_BGR2GRAY + equalizeHist
               </div>
             </div>
           </div>

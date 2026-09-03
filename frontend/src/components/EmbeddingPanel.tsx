@@ -55,23 +55,43 @@ export const EmbeddingPanel: React.FC<EmbeddingPanelProps> = ({
           alignItems: 'center',
         }}
       >
-        <span>🔍 DEBUG PANEL — 128D FACE EMBEDDING & RECORD HASH</span>
+        <span>🔍 PIPELINE INSPECTOR — GRAYSCALE CONVERSION & 128D VECTOR</span>
         <span>{isOpen ? '▲ HIDE' : '▼ SHOW'}</span>
       </button>
 
       {isOpen && (
-        <div style={{ padding: '16px', color: '#e2e8f0', fontSize: '0.8125rem' }}>
-          <div style={{ marginBottom: '12px' }}>
+        <div style={{ padding: '16px', color: '#e2e8f0', fontSize: '0.8125rem', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          
+          {/* Pre-processing details */}
+          <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '4px' }}>COMPUTER VISION PRE-PROCESSING:</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              <span style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '2px 8px', borderRadius: '4px' }}>
+                1. Face Localization (Haar Cascade)
+              </span>
+              <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', padding: '2px 8px', borderRadius: '4px' }}>
+                2. Grayscale Conversion (cv2.COLOR_BGR2GRAY)
+              </span>
+              <span style={{ background: 'rgba(212, 175, 55, 0.15)', color: '#d4af37', padding: '2px 8px', borderRadius: '4px' }}>
+                3. Histogram Equalization (equalizeHist)
+              </span>
+              <span style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', padding: '2px 8px', borderRadius: '4px' }}>
+                4. 128x128 Padded Crop Matrix
+              </span>
+            </div>
+          </div>
+
+          <div>
             <span style={{ color: '#94a3b8' }}>Vector Dimension: </span>
             <strong style={{ color: '#10b981' }}>{embeddingDimension} Numerical Values</strong>
             {embeddingDimension === 128 ? (
-              <span style={{ marginLeft: '8px', color: '#10b981' }}>(✓ Exact 128D Match)</span>
+              <span style={{ marginLeft: '8px', color: '#10b981' }}>(✓ Exact 128D Unit Sphere Match)</span>
             ) : (
               <span style={{ marginLeft: '8px', color: '#ef4444' }}>(✕ Invalid Dimension)</span>
             )}
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
+          <div>
             <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Normalized Face Embedding Vector:</div>
             <pre
               style={{
@@ -90,7 +110,7 @@ export const EmbeddingPanel: React.FC<EmbeddingPanelProps> = ({
           </div>
 
           {recordHash && (
-            <div style={{ marginBottom: '16px' }}>
+            <div>
               <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Canonical Biometric SHA-256 Hash:</div>
               <div
                 style={{
