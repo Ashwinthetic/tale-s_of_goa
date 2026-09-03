@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { FaceBox, CompareResponse, PixelStats, compareFaces, detectFace } from '../services/api';
 import { FaceOverlay } from './FaceOverlay';
