@@ -45,12 +45,18 @@ export default function Home() {
   const [recordHash, setRecordHash] = useState<string>('');
   const [verificationResult, setVerificationResult] = useState<VerificationResponse | null>(null);
 
-  // Check Python FastAPI backend status on mount
+  // Periodically check Python FastAPI backend status (every 3 seconds)
   useEffect(() => {
-    fetch('http://localhost:8000/')
-      .then((res) => res.json())
-      .then(() => setBackendOnline(true))
-      .catch(() => setBackendOnline(false));
+    const checkBackend = () => {
+      fetch('http://localhost:8000/')
+        .then((res) => res.json())
+        .then(() => setBackendOnline(true))
+        .catch(() => setBackendOnline(false));
+    };
+
+    checkBackend();
+    const interval = setInterval(checkBackend, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   // Handle camera status changes
@@ -287,6 +293,42 @@ export default function Home() {
 
           </div>
         </header>
+
+        {/* Backend Offline Guidance Banner */}
+        {backendOnline === false && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid #ef4444',
+            borderRadius: '12px',
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+              <div>
+                <strong style={{ color: '#fca5a5' }}>FastAPI Backend is Offline (port 8000)</strong>
+                <p style={{ margin: '2px 0 0 0', color: '#cbd5e1', fontSize: '0.8125rem' }}>
+                  The frontend cannot connect to the Python computer vision API. Please start the backend server in a terminal:
+                </p>
+              </div>
+            </div>
+            <code style={{
+              background: '#020617',
+              color: '#38bdf8',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              fontFamily: 'monospace',
+              fontSize: '0.8125rem',
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}>
+              cd backend &amp;&amp; python run.py
+            </code>
+          </div>
+        )}
 
         {/* TAB 1: 1-TO-1 FACE COMPARISON & SOCIAL MEDIA MATCHER */}
         {activeTab === 'compare' && (

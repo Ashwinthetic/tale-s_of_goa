@@ -12,6 +12,7 @@ export interface DetectResponse {
   status_message: string;
   image_width: number;
   image_height: number;
+  error?: string;
 }
 
 export interface EncodeResponse {
@@ -66,35 +67,73 @@ export interface VerificationQueryResponse {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function detectFace(base64Image: string): Promise<DetectResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/face/detect`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ image: base64Image }),
-  });
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/face/detect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ image: base64Image }),
+    });
 
-  if (!res.ok) {
-    throw new Error(`Face detection error: ${res.statusText}`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      return {
+        face_detected: false,
+        face_count: 0,
+        faces: [],
+        status_message: `DETECTION ERROR (${res.status})`,
+        image_width: 640,
+        image_height: 480,
+        error: errText,
+      };
+    }
+
+    return await res.json();
+  } catch (err: any) {
+    return {
+      face_detected: false,
+      face_count: 0,
+      faces: [],
+      status_message: 'BACKEND OFFLINE (PORT 8000)',
+      image_width: 640,
+      image_height: 480,
+      error: 'Cannot connect to FastAPI backend at http://localhost:8000. Start backend with: python run.py',
+    };
   }
-
-  return res.json();
 }
 
 export async function encodeFace(base64Image: string): Promise<EncodeResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/face/encode`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ image: base64Image }),
-  });
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/face/encode`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ image: base64Image }),
+    });
 
-  if (!res.ok) {
-    throw new Error(`Face encoding error: ${res.statusText}`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      return {
+        success: false,
+        embedding_dimension: 0,
+        embedding: [],
+        record_hash: '',
+        error: `Face encoding error: ${errText}`,
+      };
+    }
+
+    return await res.json();
+  } catch (err: any) {
+    return {
+      success: false,
+      embedding_dimension: 0,
+      embedding: [],
+      record_hash: '',
+      error: 'Cannot connect to FastAPI backend at http://localhost:8000. Please start it using: python run.py in the backend directory.',
+    };
   }
-
-  return res.json();
 }
 
 export async function compareFaces(
@@ -103,50 +142,119 @@ export async function compareFaces(
   threshold: number = 0.60,
   autoRecordOnChain: boolean = true
 ): Promise<CompareResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/face/compare`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      image_a: imageA,
-      image_b: imageB,
-      threshold: threshold,
-      auto_record_on_chain: autoRecordOnChain,
-    }),
-  });
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/face/compare`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image_a: imageA,
+        image_b: imageB,
+        threshold: threshold,
+        auto_record_on_chain: autoRecordOnChain,
+      }),
+    });
 
-  if (!res.ok) {
-    throw new Error(`Face comparison error: ${res.statusText}`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      return {
+        success: false,
+        is_match: false,
+        similarity_percentage: 0,
+        euclidean_distance: 2.0,
+        cosine_similarity: 0,
+        threshold_used: threshold,
+        status_message: 'Comparison API Error',
+        face_a_detected: false,
+        face_b_detected: false,
+        embedding_a: [],
+        embedding_b: [],
+        record_hash: '',
+        error: `Server error: ${errText}`,
+      };
+    }
+
+    return await res.json();
+  } catch (err: any) {
+    return {
+      success: false,
+      is_match: false,
+      similarity_percentage: 0,
+      euclidean_distance: 2.0,
+      cosine_similarity: 0,
+      threshold_used: threshold,
+      status_message: 'BACKEND OFFLINE (PORT 8000)',
+      face_a_detected: false,
+      face_b_detected: false,
+      embedding_a: [],
+      embedding_b: [],
+      record_hash: '',
+      error: 'Cannot connect to FastAPI backend at http://localhost:8000. Please start the backend with: python run.py in the backend folder.',
+    };
   }
-
-  return res.json();
 }
 
 export async function recordVerification(recordHash: string): Promise<VerificationResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/verification/record`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ record_hash: recordHash }),
-  });
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/verification/record`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ record_hash: recordHash }),
+    });
 
-  if (!res.ok) {
-    throw new Error(`Verification submission error: ${res.statusText}`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      return {
+        success: false,
+        record_hash: recordHash,
+        transaction_hash: '',
+        network: 'EVM Testnet',
+        status: 'failed',
+        timestamp: '',
+        error: `Blockchain recording error: ${errText}`,
+      };
+    }
+
+    return await res.json();
+  } catch (err: any) {
+    return {
+      success: false,
+      record_hash: recordHash,
+      transaction_hash: '',
+      network: 'EVM Testnet',
+      status: 'failed',
+      timestamp: '',
+      error: 'Cannot connect to FastAPI backend at http://localhost:8000.',
+    };
   }
-
-  return res.json();
 }
 
 export async function queryVerification(recordHash: string): Promise<VerificationQueryResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/verification/query/${encodeURIComponent(recordHash)}`, {
-    method: 'GET',
-  });
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/verification/query/${encodeURIComponent(recordHash)}`, {
+      method: 'GET',
+    });
 
-  if (!res.ok) {
-    throw new Error(`Verification query error: ${res.statusText}`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      return {
+        record_hash: recordHash,
+        exists_on_chain: false,
+        network: 'EVM Testnet',
+        error: `Query error: ${errText}`,
+      };
+    }
+
+    return await res.json();
+  } catch (err: any) {
+    return {
+      record_hash: recordHash,
+      exists_on_chain: false,
+      network: 'EVM Testnet',
+      error: 'Cannot connect to FastAPI backend at http://localhost:8000.',
+    };
   }
-
-  return res.json();
 }
