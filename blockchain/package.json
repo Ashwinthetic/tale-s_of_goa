@@ -7,7 +7,16 @@
     "compile": "npx hardhat compile",
     "test": "npx hardhat test"
   },
-  "keywords": ["blockchain", "ethereum", "hardhat", "smart-contracts"],
+  "keywords": [
+    "blockchain",
+    "ethereum",
+    "hardhat",
+    "smart-contracts"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.29.1"
+  }
 }

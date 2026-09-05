@@ -1,5 +1,6 @@
 import base64
 import io
+import os
 import cv2
 import numpy as np
 from PIL import Image
@@ -8,6 +9,19 @@ from typing import List, Tuple, Dict, Any, Optional
 # Load OpenCV Cascade Face Classifiers for robust multi-angle face detection
 FACE_CASCADE_DEFAULT = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 FACE_CASCADE_ALT2 = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_alt2.xml')
+
+# Load SFace DNN Face Recognizer (pre-trained deep neural network for face identity)
+# This produces REAL identity-discriminative 128D embeddings unlike basic image statistics.
+_SFACE_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'face_recognition_sface_2021dec.onnx')
+_SFACE_RECOGNIZER = None
+if os.path.exists(_SFACE_MODEL_PATH):
+    try:
+        _SFACE_RECOGNIZER = cv2.FaceRecognizerSF.create(_SFACE_MODEL_PATH, "")
+        print(f"[FACE] SFace DNN face recognizer loaded successfully from {_SFACE_MODEL_PATH}")
+    except Exception as e:
+        print(f"[FACE] Warning: Could not load SFace model: {e}. Falling back to basic embeddings.")
+else:
+    print(f"[FACE] Warning: SFace model not found at {_SFACE_MODEL_PATH}. Using basic embeddings.")
 
 def decode_base64_image(base64_string: str) -> np.ndarray:
     """
@@ -198,19 +212,36 @@ def crop_face_region(image_bgr: np.ndarray, box: Dict[str, int], padding_pct: fl
 
 def generate_128d_embedding(face_bgr: np.ndarray) -> List[float]:
     """
-    Generates a normalized 128-dimensional numerical face embedding vector.
-    Processes facial geometry grid, gradient descriptors, and color-space encodings.
-    Verifies output dimension is strictly 128 float values normalized on unit sphere (L2 norm).
+    Generates a normalized 128-dimensional face identity embedding vector.
+    Uses OpenCV SFace DNN (pre-trained deep neural network) when available.
+    Falls back to handcrafted features if DNN model is not loaded.
     """
     if face_bgr is None or face_bgr.size == 0:
         raise ValueError("Invalid face crop for embedding extraction")
 
-    # Resize crop to standard 128x128 facial analysis grid
+    # --- DNN-BASED EMBEDDING (SFace - real face recognition) ---
+    if _SFACE_RECOGNIZER is not None:
+        # SFace expects 112x112 BGR input
+        aligned_face = cv2.resize(face_bgr, (112, 112))
+        # Run DNN inference to produce 128D identity embedding
+        feature = _SFACE_RECOGNIZER.feature(aligned_face)
+        embedding_vec = feature.flatten()
+
+        # L2-normalize to unit sphere
+        l2_norm = np.linalg.norm(embedding_vec)
+        if l2_norm > 0:
+            embedding_vec = embedding_vec / l2_norm
+
+        embedding_list = [float(np.round(x, 6)) for x in embedding_vec]
+        # SFace produces 128D output
+        assert len(embedding_list) == 128, f"SFace embedding dimension error: expected 128, got {len(embedding_list)}"
+        return embedding_list
+
+    # --- FALLBACK: Handcrafted features (when DNN model is not available) ---
     face_resized = cv2.resize(face_bgr, (128, 128))
     gray_face = cv2.cvtColor(face_resized, cv2.COLOR_BGR2GRAY)
     gray_face = cv2.equalizeHist(gray_face)
 
-    # Compute 128-dimensional facial representation vector
     # 1. Block-wise mean intensity (64 features)
     blocks_8x8 = cv2.resize(gray_face, (8, 8), interpolation=cv2.INTER_AREA).flatten() / 255.0
 
@@ -230,14 +261,10 @@ def generate_128d_embedding(face_bgr: np.ndarray) -> List[float]:
     if np.sum(color_features) > 0:
         color_features = color_features / np.sum(color_features)
 
-    # Combine into 128-dimensional feature vector
     raw_embedding = np.concatenate([blocks_8x8, grad_features, color_features])
-
-    # Enforce strict 128 dimension constraint
     if len(raw_embedding) != 128:
         raw_embedding = np.resize(raw_embedding, 128)
 
-    # Normalize vector to unit sphere (L2 norm)
     l2_norm = np.linalg.norm(raw_embedding)
     if l2_norm > 0:
         normalized_embedding = raw_embedding / l2_norm
@@ -245,10 +272,7 @@ def generate_128d_embedding(face_bgr: np.ndarray) -> List[float]:
         normalized_embedding = raw_embedding
 
     embedding_list = [float(np.round(x, 6)) for x in normalized_embedding]
-
-    # Programmatic assertion
     assert len(embedding_list) == 128, f"Embedding dimension error: expected 128, got {len(embedding_list)}"
-
     return embedding_list
 
 def compute_euclidean_distance(embedding_a: List[float], embedding_b: List[float]) -> float:
@@ -280,18 +304,22 @@ def compute_cosine_similarity(embedding_a: List[float], embedding_b: List[float]
 def evaluate_face_similarity(
     embedding_a: List[float],
     embedding_b: List[float],
-    threshold: float = 0.60
+    threshold: float = 1.0
 ) -> Tuple[bool, float, float, float]:
     """
-    Evaluates face match verdict and metrics.
+    Evaluates face match verdict and metrics using SFace DNN embeddings.
+    For SFace L2-normalized embeddings:
+      - Same person: L2 dist ~0.3-0.8, cosine_sim ~0.7-0.95
+      - Different person: L2 dist ~1.0-1.5, cosine_sim ~-0.1-0.5
     Returns (is_match, similarity_percentage, euclidean_distance, cosine_similarity).
     """
     euc_dist = compute_euclidean_distance(embedding_a, embedding_b)
     cos_sim = compute_cosine_similarity(embedding_a, embedding_b)
 
-    # For unit vectors: dist range is [0, 2.0]. Perfect match dist = 0.
-    # Map distance to similarity percentage (0 - 100%)
-    sim_pct = max(0.0, min(100.0, (1.0 - (euc_dist / 1.414)) * 100.0))
+    # Similarity percentage based on cosine similarity (range: 0-100%)
+    # cosine_sim range for normalized vectors: [-1, 1]
+    # Map [0, 1] -> [0%, 100%], clamp negatives to 0%
+    sim_pct = max(0.0, min(100.0, cos_sim * 100.0))
     sim_pct = round(sim_pct, 2)
 
     is_match = bool(euc_dist <= threshold)

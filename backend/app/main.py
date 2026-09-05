@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes.face import router as face_router
 from app.routes.verification import router as verification_router
+from app.routes.social import router as social_router
 
 app = FastAPI(
     title="HH GOA Face ID & Verification API",
@@ -20,6 +21,7 @@ app.add_middleware(
 
 app.include_router(face_router)
 app.include_router(verification_router)
+app.include_router(social_router)
 
 @app.get("/")
 def root():
