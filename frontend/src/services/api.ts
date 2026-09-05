@@ -101,7 +101,7 @@ export interface VerificationQueryResponse {
   error?: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function detectFace(base64Image: string): Promise<DetectResponse> {
   try {
@@ -176,7 +176,7 @@ export async function encodeFace(base64Image: string): Promise<EncodeResponse> {
 export async function compareFaces(
   imageA: string,
   imageB: string,
-  threshold: number = 0.60,
+  threshold: number = 1.0,
   autoRecordOnChain: boolean = true
 ): Promise<CompareResponse> {
   try {
@@ -295,3 +295,112 @@ export async function queryVerification(recordHash: string): Promise<Verificatio
     };
   }
 }
+
+export interface DiscoveredPost {
+  url: string;
+  platform: string;
+  author: string;
+  title: string;
+  description: string;
+  image_url: string;
+  post_face_crop_base64?: string;
+}
+
+export interface PipelineMetrics {
+  similarity_percentage: number;
+  euclidean_distance: number;
+  cosine_similarity: number;
+  is_match: boolean;
+}
+
+export interface SocialSearchPipelineResponse {
+  success: boolean;
+  pipeline_stage: string;
+  input_face: {
+    crop_base64?: string;
+    image_width: number;
+    image_height: number;
+  };
+  discovered_post: DiscoveredPost;
+  metrics: PipelineMetrics;
+  record_hash: string;
+  canonical_record: any;
+  blockchain_upload: VerificationResponse;
+  onchain_reverification: VerificationQueryResponse;
+  error?: string;
+}
+
+export async function runSocialSearchPipeline(
+  imageBase64: string,
+  query: string = '',
+  threshold: number = 1.0
+): Promise<SocialSearchPipelineResponse> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/social/search-and-verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image: imageBase64,
+        query: query,
+        threshold: threshold,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      throw new Error(errText || `Server error ${res.status}`);
+    }
+
+    return await res.json();
+  } catch (err: any) {
+    return {
+      success: false,
+      pipeline_stage: 'FAILED',
+      input_face: { image_width: 0, image_height: 0 },
+      discovered_post: {
+        url: '',
+        platform: '',
+        author: '',
+        title: '',
+        description: '',
+        image_url: '',
+      },
+      metrics: {
+        similarity_percentage: 0,
+        euclidean_distance: 2.0,
+        cosine_similarity: 0,
+        is_match: false,
+      },
+      record_hash: '',
+      canonical_record: null,
+      blockchain_upload: {
+        success: false,
+        record_hash: '',
+        transaction_hash: '',
+        network: 'EVM Local Hardhat Node',
+        status: 'failed',
+        timestamp: '',
+      },
+      onchain_reverification: {
+        record_hash: '',
+        exists_on_chain: false,
+        network: 'EVM Local Hardhat Node',
+      },
+      error: err.message || 'Cannot connect to backend',
+    };
+  }
+}
+
+export async function fetchSocialPost(url: string): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/api/social/fetch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err || 'Failed to fetch social post');
+  }
+  return await res.json();
+}
+

@@ -4,6 +4,9 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from web3 import Web3
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Environment variables
 RPC_URL = os.getenv("BLOCKCHAIN_RPC_URL", "http://127.0.0.1:8545")
@@ -74,17 +77,19 @@ def submit_record_hash_to_blockchain(record_hash_hex: str) -> Dict[str, Any]:
             })
 
             signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
-            tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            raw_tx = getattr(signed_tx, "raw_transaction", None) or getattr(signed_tx, "rawTransaction", None)
+            tx_hash = w3.eth.send_raw_transaction(raw_tx)
             receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=10)
+            block_num = receipt.blockNumber if hasattr(receipt, 'blockNumber') else receipt.get('blockNumber', 1)
 
             return {
                 "success": True,
                 "record_hash": bytes32_hash,
                 "transaction_hash": w3.to_hex(tx_hash),
-                "network": f"EVM Local Node (Chain ID: {CHAIN_ID})",
+                "network": f"EVM Local Hardhat Node (Chain ID: {CHAIN_ID})",
                 "status": "confirmed",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "block_number": receipt.blockNumber
+                "block_number": block_num
             }
     except Exception as e:
         print(f"[Blockchain Service Notice] Live RPC unavailable, using local deterministic proof simulator: {e}")
@@ -108,25 +113,32 @@ def query_verification_record(record_hash_hex: str) -> Dict[str, Any]:
     bytes32_hash = format_bytes32_hash(record_hash_hex)
 
     try:
-        w3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={'timeout': 1}))
+        w3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={'timeout': 2}))
         if w3.is_connected():
             contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=CONTRACT_ABI)
-            ts, recorder = contract.functions.getVerification(bytes32_hash).call()
-
-            if ts > 0:
-                ts_iso = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+            try:
+                ts, recorder = contract.functions.getVerification(bytes32_hash).call()
+                if ts > 0:
+                    ts_iso = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+                    return {
+                        "record_hash": bytes32_hash,
+                        "exists_on_chain": True,
+                        "timestamp": ts,
+                        "timestamp_iso": ts_iso,
+                        "recorder": recorder,
+                        "network": f"EVM Local Hardhat Node (Chain ID: {CHAIN_ID})"
+                    }
+            except Exception as call_err:
                 return {
                     "record_hash": bytes32_hash,
-                    "exists_on_chain": True,
-                    "timestamp": ts,
-                    "timestamp_iso": ts_iso,
-                    "recorder": recorder,
-                    "network": f"EVM Local Node (Chain ID: {CHAIN_ID})"
+                    "exists_on_chain": False,
+                    "network": f"EVM Local Hardhat Node (Chain ID: {CHAIN_ID})",
+                    "error": "Record hash not found on-chain"
                 }
     except Exception as e:
         print(f"[Blockchain Service Query Notice] {e}")
 
-    # Simulated fallback response
+    # Fallback response if node is offline (Simulator / Unit Tests)
     return {
         "record_hash": bytes32_hash,
         "exists_on_chain": True,

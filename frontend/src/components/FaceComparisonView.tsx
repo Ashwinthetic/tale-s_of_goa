@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { FaceBox, CompareResponse, PixelStats, compareFaces, detectFace } from '../services/api';
 import { FaceOverlay } from './FaceOverlay';
@@ -31,7 +33,7 @@ export function FaceComparisonView({ onNotify }: Props) {
   const [eqCropB, setEqCropB] = useState<string | undefined>(undefined);
 
   // Pipeline execution & results
-  const [threshold, setThreshold] = useState<number>(0.60);
+  const [threshold, setThreshold] = useState<number>(1.0);
   const [autoRecord, setAutoRecord] = useState<boolean>(true);
   const [isComparing, setIsComparing] = useState<boolean>(false);
   const [result, setResult] = useState<CompareResponse | null>(null);
@@ -290,8 +292,8 @@ export function FaceComparisonView({ onNotify }: Props) {
               <span>Threshold (Dist &le; {threshold.toFixed(2)}):</span>
               <input
                 type="range"
-                min="0.30"
-                max="0.90"
+                min="0.60"
+                max="1.40"
                 step="0.05"
                 value={threshold}
                 onChange={(e) => setThreshold(parseFloat(e.target.value))}
